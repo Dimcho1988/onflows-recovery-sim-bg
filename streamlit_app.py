@@ -86,7 +86,10 @@ for i in range(num_days):
                 "L_today": data["today"][:n_zones].astype(float),
                 "L_21d": data["base21"][:n_zones].astype(float),
             })
-            df_edit = st.data_editor(df, use_container_width=True, num_rows="fixed")
+            # >>> УНИКАЛЕН KEY ЗА ВСЕКИ ДЕН <<<
+            df_edit = st.data_editor(
+                df, use_container_width=True, num_rows="fixed", key=f"data_editor_{i}"
+            )
             st.session_state[key]["today"] = df_edit["L_today"].to_numpy()
             st.session_state[key]["base21"] = df_edit["L_21d"].to_numpy()
 
@@ -116,7 +119,6 @@ W = zone_spill_matrix(n_zones, spill)
 R0_list, D_list, t0_list = [], [], []
 summary_day1 = None  # за таблицата (Ден 1)
 rk_day1 = None       # за stacked bar
-today_day1 = None    # за stacked bar
 
 for i, key in enumerate(day_keys):
     today = st.session_state[key]["today"][:n_zones]
@@ -143,7 +145,6 @@ for i, key in enumerate(day_keys):
     if i == 0:
         summary_day1 = summarize(n_zones, rzeff, R0, Dz, p_target=70.0)
         rk_day1 = rk
-        today_day1 = today
 
 # Хоризонт и криви (сумарно от всички дни)
 st.subheader("Динамика на готовността (сумарно от всички дни)")
@@ -187,5 +188,4 @@ st.latex(r"r_k = \frac{L_{k,\;today}}{L_{k,\;21d} + \varepsilon}")
 st.latex(r"r^{eff}_z = \sum_k W_{z,k} \cdot r_k")
 st.latex(r"R_{0,z} = 1 - \eta_0 \cdot r^{eff}_z \cdot H,\quad H=\tfrac{1}{2}(M_{obj}+M_{subj})")
 st.latex(r"D^{eff}_z = \sum_k W_{z,k} \left(\alpha_0 M_{obj} M_{subj} \cdot r_k\right) \cdot c_{pain,z}")
-st.latex(r"\text{Ready}_z(t) = 100\,\Big(1 - (1-R_{0,z}) e^{-\ln(20)\, t / D^{eff}_z}\Big)")
 st.latex(r"\text{Ready}_z^{multi}(t) = 100\left(1 - \sum_i (1-R_{0,z}^{(i)})\, e^{-\ln(20)\, (t-t_0^{(i)}) / D^{eff,(i)}_z}\right)_+")
