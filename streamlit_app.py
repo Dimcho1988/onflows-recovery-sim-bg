@@ -53,7 +53,6 @@ if "obj" not in st.session_state:
 st.subheader("Входни данни")
 num_days = st.slider("Брой последователни дни (сценарий)", 1, 3, 1, 1)
 
-# държим данните за всеки ден в session_state
 def _ensure_day_state(day_idx):
     key = f"day{day_idx}"
     if key not in st.session_state:
@@ -86,7 +85,6 @@ for i in range(num_days):
                 "L_today": data["today"][:n_zones].astype(float),
                 "L_21d": data["base21"][:n_zones].astype(float),
             })
-            # >>> УНИКАЛЕН KEY ЗА ВСЕКИ ДЕН <<<
             df_edit = st.data_editor(
                 df, use_container_width=True, num_rows="fixed", key=f"data_editor_{i}"
             )
@@ -117,7 +115,7 @@ for i in range(num_days):
 W = zone_spill_matrix(n_zones, spill)
 
 R0_list, D_list, t0_list = [], [], []
-summary_day1 = None  # за таблицата (Ден 1)
+per_day_store = []   # ще пазим за справките: (ден, rzeff, R0, Dz)
 rk_day1 = None       # за stacked bar
 
 for i, key in enumerate(day_keys):
@@ -134,7 +132,6 @@ for i, key in enumerate(day_keys):
     M_obj = obj_multiplier(obj)
 
     R0 = readiness_initial(rzeff, M_obj, M_subj, eta0)
-    # cpain прилагаме само за Ден 1; за следващите дни го държим 1.0
     cpain_vec = np.array(cpain[:n_zones]) if i == 0 else np.ones(n_zones)
     Dz = Dz_eff(rk, W, M_obj, M_subj, cpain_vec, alpha0)
 
@@ -142,8 +139,8 @@ for i, key in enumerate(day_keys):
     D_list.append(Dz)
     t0_list.append(float(i))  # Ден 0, 1, 2 -> през 24 ч
 
+    per_day_store.append((i+1, rzeff, R0, Dz))
     if i == 0:
-        summary_day1 = summarize(n_zones, rzeff, R0, Dz, p_target=70.0)
         rk_day1 = rk
 
 # Хоризонт и криви (сумарно от всички дни)
@@ -158,10 +155,25 @@ for z in range(n_zones):
 fig.update_layout(xaxis_title="Дни след първата сесия", yaxis_title="Готовност %", yaxis=dict(range=[0, 100]))
 st.plotly_chart(fig, use_container_width=True)
 
-# Таблица (Ден 1)
-st.subheader("Числови справки (Ден 1)")
-if summary_day1 is not None:
-    st.dataframe(summary_day1, use_container_width=True)
+# ====== Числови справки (избираеми дни + избираем целеви %)
+st.subheader("Числови справки по дни")
+target_p = st.slider("Целева готовност (%)", 50, 100, 70, 1)
+day_options = [f"Ден {i+1}" for i in range(num_days)]
+chosen_days = st.multiselect("Покажи справка за:", day_options, default=day_options)
+
+tables = []
+for (day_idx, rzeff, R0, Dz) in per_day_store:
+    label = f"Ден {day_idx}"
+    if label in chosen_days:
+        tbl = summarize(n_zones, rzeff, R0, Dz, p_target=target_p)
+        tbl.insert(0, "Ден", label)
+        tables.append(tbl)
+
+if tables:
+    out = pd.concat(tables, ignore_index=True)
+    st.dataframe(out, use_container_width=True)
+else:
+    st.info("Избери поне един ден, за да видиш справката.")
 
 # Stacked bar: принос на съседни зони към r_eff на избрана зона (от Ден 1)
 st.subheader("Принос от съседни зони (stacked bar, Ден 1)")
@@ -189,3 +201,4 @@ st.latex(r"r^{eff}_z = \sum_k W_{z,k} \cdot r_k")
 st.latex(r"R_{0,z} = 1 - \eta_0 \cdot r^{eff}_z \cdot H,\quad H=\tfrac{1}{2}(M_{obj}+M_{subj})")
 st.latex(r"D^{eff}_z = \sum_k W_{z,k} \left(\alpha_0 M_{obj} M_{subj} \cdot r_k\right) \cdot c_{pain,z}")
 st.latex(r"\text{Ready}_z^{multi}(t) = 100\left(1 - \sum_i (1-R_{0,z}^{(i)})\, e^{-\ln(20)\, (t-t_0^{(i)}) / D^{eff,(i)}_z}\right)_+")
+
